@@ -60,7 +60,7 @@ class TtsClient extends Emitter {
     this.socket = new WebSocket('wss://openspeech.bytedance.com/api/v3/tts/bidirection', {
       headers: {
         'X-Api-App-Key': process.env.BYTEDANCE_TTS_APP_ID,
-        'X-Api-Access-Key': process.env.BYTEDANCE_TTS_ACCESS_TOKEN,
+        'X-Api-Access-Key': process.env.BYTEDANCE_TTS_APP_KEY,
         'X-Api-Resource-Id': 'volc.service_type.10029',
         'X-Api-Request-Id': this.reqId
       }
@@ -81,6 +81,9 @@ class TtsClient extends Emitter {
 
     this.socket.on('close', () => {
       console.log('WebSocket closed.');
+      for (const session of Object.values(this.sessions)) {
+        session.emit('cancelled');
+      }
       this.emit('close');
     });
   }
@@ -138,19 +141,13 @@ class TtsClient extends Emitter {
     const eventCode = data.readUInt32BE(4);
     if (eventCode == 50) {
       this.connectionReady = true;
-      // PING every 30 seconds
-      this.pingTimer = setInterval(() => {
-        this.socket.ping();
-      }, 30000);
-
       this.emit('ready');
     } else if (eventCode == 51) {
       this.connectionReady = false;
-      clearInterval(this.pingTimer);
-      console.error('Failed to connect to TTS server.');
+      this.emit('error', 'Failed to connect to TTS server.');
     } else if (eventCode == 52) {
-      console.log('Connection closed by server.');
       this.socket.close();
+      this.emit('close');
     } else {
       let offset = 8;
       const sessionIdLength = data.readUInt32BE(offset);
@@ -220,11 +217,11 @@ class TtsClient extends Emitter {
 function test() {
   const tts = new TtsClient();
   tts.on('ready', () => {
-    console.log('TTS server is ready.');
+    console.log(new Date(), 'TTS server is ready.');
 
     const session = tts.newSession();
     session.on('started', async () => {
-      console.log('TTS session started.');
+      console.log(new Date(), 'TTS session started.');
 
       session.write('你好，主人！');
       session.finish();
@@ -232,11 +229,12 @@ function test() {
 
     let t = Buffer.alloc(0);
     session.on('audio', (audio) => {
+      console.log(new Date(), 'received', audio.length, 'bytes')
       t = Buffer.concat([t, audio]);
     });
 
     session.on('finished', () => {
-      console.log('TTS session finished.');
+      console.log(new Date(), 'TTS session finished.');
       tts.finishConnection();
 
       const fs = require('fs');
