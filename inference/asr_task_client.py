@@ -68,7 +68,7 @@ class AsrWorker:
         self.chunk_size_ms = 240  # VAD duration
         self.chunk_size = int(SAMPLE_RATE / 1000 * 2 * self.chunk_size_ms)
         self.fast_reply_silence_duration = 0  # Fast reply duration
-        self.reply_silence_duration = 960  # Reply duration
+        self.reply_silence_duration = 720  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
         self.started = False
         self.reset()
@@ -159,7 +159,7 @@ class AsrWorker:
 
     def reply(self):
         if self.content == '。':
-            logging.info('Ignore empty content', self.content)
+            logging.info(f'Ignore empty content {self.content}')
             self.reset()
             return
         
