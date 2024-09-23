@@ -68,7 +68,7 @@ class AsrWorker:
         self.chunk_size_ms = 240  # VAD duration
         self.chunk_size = int(SAMPLE_RATE / 1000 * 2 * self.chunk_size_ms)
         self.fast_reply_silence_duration = 0  # Fast reply duration
-        self.reply_silence_duration = 720  # Reply duration
+        self.reply_silence_duration = 960  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
         self.started = False
         self.reset()
@@ -99,8 +99,12 @@ class AsrWorker:
 
     def is_question(self):
         # TODO: Use a model to detect questions
-        match_tokens = ['吗', '嘛', '么', '呢', '吧', '？', '?']
-        return any([token in self.content for token in match_tokens])
+        match_tokens = ['吗', '嘛', '么', '呢', '吧', '啦', '？', '?']
+        last_part = self.content[-3:]
+        for token in match_tokens:
+            if token in last_part:
+                return True
+        return False
 
     def on_audio_frame(self, frame):
         frame_fp32 = np.frombuffer(frame, dtype=np.int16).astype(np.float32) / 32768

@@ -37,7 +37,7 @@ conda create -n xiaozhi python=3.12
 codna activate xiaozhi
 
 pip install -r requirements.txt
-python asr_task_client.py
+python app.py
 ```
 
 ## WebSocket 协议
