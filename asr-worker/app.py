@@ -67,7 +67,7 @@ class AsrWorker:
         self.audio_storage = audio_storage
         self.chunk_size_ms = 240  # VAD duration
         self.chunk_size = int(SAMPLE_RATE / 1000 * 2 * self.chunk_size_ms)
-        self.fast_reply_silence_duration = 0  # Fast reply duration
+        self.fast_reply_silence_duration = 240  # Fast reply duration
         self.reply_silence_duration = 960  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
         self.started = False
@@ -79,7 +79,7 @@ class AsrWorker:
         self.vad_cache = {}
         self.vad_last_pos_ms = -1
         self.vad_cached_segments = []
-        self.vad_updated = False
+        self.fast_reply_checked = False
         self.content = ''
 
     def truncate(self):
@@ -124,19 +124,21 @@ class AsrWorker:
         if self.vad_last_pos_ms == -1: # Speech still going on
             return
         
-        if self.vad_updated:
-            self.vad_updated = False
+        silence_duration = self.get_silence_duration()
+
+        if not self.fast_reply_checked and silence_duration >= self.fast_reply_silence_duration:
             start_time = time.time()
+            self.fast_reply_checked = True
             self.content = self.generate_text()
-            logging.info(f'[VAD UPDATE] {self.content} (time: {time.time() - start_time:.2f}s)')
+            if self.is_question():
+                logging.info(f'Fast reply detected: {self.content} (time: {time.time() - start_time:.2f}s)')
+                self.reply()
             return
         
-        if self.is_question() and self.get_silence_duration() >= self.fast_reply_silence_duration:
-            logging.info('Fast reply detected')
-            self.reply()
-            return
-        if self.get_silence_duration() >= self.reply_silence_duration:
-            logging.info('Silence detected')
+        if silence_duration >= self.reply_silence_duration:
+            start_time = time.time()
+            self.content = self.generate_text()
+            logging.info(f'Silence detected: {self.content} (time: {time.time() - start_time:.2f}s)')
             self.reply()
             return
 
@@ -151,7 +153,7 @@ class AsrWorker:
             self.vad_cached_segments.extend(result[0]['value'])
             self.vad_last_pos_ms = self.vad_cached_segments[-1][1]
             if self.vad_last_pos_ms != -1:
-                self.vad_updated = True
+                self.fast_reply_checked = False
 
     def generate_text(self):
         result = self.model_manager.sense_model.generate(input=self.audio_buffer, cache={}, language='zh', use_itn=True)
@@ -176,7 +178,6 @@ class AsrWorker:
             'embedding': self.generate_embedding(),
             'url': os.path.join(oss_prefix, oss_key)
         }
-        logging.info(f'[REPLY] {self.content}')
         self.wsapp.send(json.dumps(message).encode())
         self.audio_storage.async_put(oss_key, self.content, self.audio_buffer)
         self.reset()
