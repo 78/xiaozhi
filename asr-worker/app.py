@@ -70,7 +70,6 @@ class AsrWorker:
         self.fast_reply_silence_duration = 240  # Fast reply duration
         self.reply_silence_duration = 960  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
-        self.started = False
         self.reset()
 
     def reset(self):
@@ -80,6 +79,7 @@ class AsrWorker:
         self.vad_last_pos_ms = -1
         self.vad_cached_segments = []
         self.fast_reply_checked = False
+        self.listening = False
         self.content = ''
 
     def truncate(self):
@@ -110,7 +110,7 @@ class AsrWorker:
         frame_fp32 = np.frombuffer(frame, dtype=np.int16).astype(np.float32) / 32768
         self.audio_buffer = np.concatenate([self.audio_buffer, frame_fp32])
 
-        if not self.started:
+        if not self.listening:
             return
 
         if self.get_unprocessed_duration() < self.chunk_size_ms:
@@ -160,6 +160,9 @@ class AsrWorker:
         return rich_transcription_postprocess(result[0]['text'])
 
     def generate_embedding(self):
+        # if no audio input, return []
+        if self.audio_buffer.shape[0] == 0:
+            return []
         result = self.model_manager.sv_model(self.audio_buffer)
         return result.tolist()
 
@@ -185,7 +188,9 @@ class AsrWorker:
     def detect(self, words):
         self.content = words # Directly use the words, ignore the audio buffer
         self.reply()
-        self.started = True
+    
+    def listen(self):
+        self.listening = True
 
 
 class AsrTaskClient:
@@ -221,17 +226,25 @@ class AsrTaskClient:
 
         if data['type'] == 'detect':
             self.get_worker(session_id).detect(data['words'])
+            logging.info(f'Worker {session_id} detected: {data["words"]}')
+        elif data['type'] == 'listen':
+            self.get_worker(session_id).listen()
+            logging.info(f'Worker {session_id} started listening')
         elif data['type'] == 'finish':
-            del self.workers[session_id]
-            logging.info(f'Worker {session_id} finished')
+            if session_id in self.workers:
+                del self.workers[session_id]
+                logging.info(f'Worker {session_id} finished')
         else:
             logging.warning(f'Unknown message type: {data["type"]}')
 
     def on_message(self, wsapp, message):
-        if isinstance(message, bytes):
-            self.parse_binary_message(message)
-        else:
-            self.parse_text_message(message)
+        try:
+            if isinstance(message, bytes):
+                self.parse_binary_message(message)
+            else:
+                self.parse_text_message(message)
+        except Exception as e:
+            logging.error(f"An error occurred: {e}", exc_info=True)
 
     def on_open(self, wsapp):
         logging.info('Connected to the Asr Task Server.')
