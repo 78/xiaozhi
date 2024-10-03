@@ -131,14 +131,14 @@ class AsrWorker:
             self.fast_reply_checked = True
             self.content = self.generate_text()
             if self.is_question():
-                logging.info(f'Fast reply detected: {self.content} (time: {time.time() - start_time:.2f}s)')
+                logging.info(f'Fast reply detected: {self.content} (time: {time.time() - start_time:.3f}s)')
                 self.reply()
             return
         
         if silence_duration >= self.reply_silence_duration:
             start_time = time.time()
             self.content = self.generate_text()
-            logging.info(f'Silence detected: {self.content} (time: {time.time() - start_time:.2f}s)')
+            logging.info(f'Silence detected: {self.content} (time: {time.time() - start_time:.3f}s)')
             self.reply()
             return
 
