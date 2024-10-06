@@ -27,6 +27,10 @@ class AsrWorkerSession extends Emitter {
     this.sendCommand('detect', { words });
   }
 
+  listen() {
+    this.sendCommand('listen');
+  }
+
   finish() {
     this.sendCommand('finish');
     this.asrWorker.removeSession(this.sessionId);

@@ -31,6 +31,8 @@ wss.on('connection', (ws) => {
       const json = JSON.parse(message);
       if (json.type === 'detect') {
         session.detect(json.words);
+      } else if (json.type === 'listen') {
+        session.listen();
       } else {
         console.error('收到未知消息类型:', json.type);
       }

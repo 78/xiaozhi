@@ -9,19 +9,19 @@ const { v4: uuidv4 } = require('uuid');
 const EventEmitter = require('events');
 
 class TtsSession extends EventEmitter {
-  constructor(client, speaker) {
+  constructor(client, speaker, sampleRate = 24000) {
     super();
     this.client = client;
     this.sessionId = uuidv4();
-    this.params = this.initParams(speaker);
+    this.params = this.initParams(speaker, sampleRate);
   }
 
-  initParams(speaker) {
+  initParams(speaker, sampleRate) {
     return {
       speaker: speaker || 'zh_female_shuangkuaisisi_moon_bigtts',
       audio_params: {
         format: 'pcm',
-        sample_rate: 24000
+        sample_rate: sampleRate
       }
     };
   }
@@ -48,7 +48,7 @@ class TtsSession extends EventEmitter {
   }
 }
 
-class TtsClient extends EventEmitter {
+class BytedanceTtsClient extends EventEmitter {
   constructor() {
     super();
     this.sessions = new Map();
@@ -67,6 +67,10 @@ class TtsClient extends EventEmitter {
     this.socket.on('error', this.onError.bind(this));
     this.socket.on('close', this.onClose.bind(this));
     this.socket.on('upgrade', this.onUpgrade.bind(this));
+  }
+
+  close() {
+    this.socket.close();
   }
 
   onUpgrade(req) {
@@ -113,8 +117,8 @@ class TtsClient extends EventEmitter {
     this.emit('close');
   }
 
-  newSession(speaker) {
-    const session = new TtsSession(this, speaker);
+  newSession(speaker, sampleRate) {
+    const session = new TtsSession(this, speaker, sampleRate);
     this.sessions.set(session.sessionId, session);
     session.start();
     return session;
@@ -296,8 +300,8 @@ class TtsClient extends EventEmitter {
   }
 }
 
-module.exports = { TtsClient };
+module.exports = { BytedanceTtsClient };
 
 if (require.main === module) {
-  TtsClient.test();
+  BytedanceTtsClient.test();
 }

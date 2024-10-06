@@ -4,4 +4,5 @@ module.exports = {
   ttsReconnectDelay: 1000,
   encodeSampleRate: 24000,
   encodeIntervalMs: 60,
+  maxClients: 100,
 };
