@@ -170,6 +170,7 @@ class AsrWorker:
         if self.content == '。':
             logging.info(f'Ignore empty content {self.content}')
             self.reset()
+            self.listen()
             return
         
         oss_prefix = os.getenv('OSS_BUCKET_URL', '')
