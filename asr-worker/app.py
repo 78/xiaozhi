@@ -219,6 +219,8 @@ class AsrTaskClient:
         worker = self.get_worker(session_id)
         if worker is not None:
             worker.on_audio_frame(pcm)
+        else:
+            logging.warning(f'Unknown session_id: {session_id}')
 
     def parse_text_message(self, message):
         data = json.loads(message)
