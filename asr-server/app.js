@@ -5,7 +5,6 @@ const AsrWorkerManager = require('./manager');
 
 const wss = new WebSocketServer({ port: config.asrFrontendPort });
 const manager = new AsrWorkerManager();
-const decoder = new OpusEncoder(config.decodeSampleRate, 1);
 
 wss.on('connection', (ws) => {
   const worker = manager.getWorker();
@@ -15,10 +14,13 @@ wss.on('connection', (ws) => {
     return;
   }
 
-  worker.on('close', () => {
+  const closeHandler = () => {
     ws.close();
-  });
+  };
 
+  worker.on('close', closeHandler);
+
+  const decoder = new OpusEncoder(config.decodeSampleRate, 1);
   const session = worker.newSession();
   session.on('text', (text, embedding, url) => {
     ws.send(JSON.stringify({ type: 'text', text, embedding, url }));
@@ -41,6 +43,7 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     session.finish();
+    worker.removeListener('close', closeHandler);
   });
 });
 
