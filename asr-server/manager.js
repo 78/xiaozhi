@@ -25,7 +25,7 @@ class AsrWorkerManager extends Emitter {
   }
 
   onServerError(err) {
-    console.error(new Date(), 'ASR任务服务器错误:', err);
+    console.error('ASR任务服务器错误:', err);
   }
 
   onServerListening() {

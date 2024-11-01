@@ -34,6 +34,10 @@ class TtsSession extends EventEmitter {
     this.sendRequest(200, { ...this.params, text });
   }
 
+  cancel() {
+    this.sendRequest(101, {});
+  }
+
   finish() {
     this.sendRequest(102, {});
   }
@@ -70,7 +74,11 @@ class BytedanceTtsClient extends EventEmitter {
   }
 
   close() {
-    this.socket.close();
+    if (this.connectionReady) {
+      this.finishConnection();
+    } else {
+      this.socket.close();
+    }
   }
 
   onUpgrade(req) {
@@ -111,7 +119,6 @@ class BytedanceTtsClient extends EventEmitter {
   }
 
   onClose() {
-    this.connectionReady = false;
     this.sessions.forEach(session => session.emit('cancelled'));
     this.sessions.clear();
     this.emit('close');
@@ -172,6 +179,8 @@ class BytedanceTtsClient extends EventEmitter {
         this.emit('error', 'Failed to connect to TTS server.');
         break;
       case 52:
+        this.connectionReady = false;
+        this.sessions.clear();
         this.socket.close();
         break;
     }
@@ -229,8 +238,6 @@ class BytedanceTtsClient extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (session) {
       session.emit('audio', audio);
-    } else {
-      console.error('Session not found:', sessionId);
     }
   }
 
@@ -239,7 +246,7 @@ class BytedanceTtsClient extends EventEmitter {
   }
 
   static test() {
-    const client = new TtsClient();
+    const client = new BytedanceTtsClient();
     client.on('ready', () => {
       console.log('TTS服务器就绪。');
 

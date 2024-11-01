@@ -191,6 +191,7 @@ class AsrWorker:
         self.reply()
     
     def listen(self):
+        self.reset()
         self.listening = True
 
 

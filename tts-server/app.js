@@ -15,7 +15,6 @@ class TtsSessionHandler {
     this.ws = ws;
     this.sampleRate = config.encodeSampleRate;
     this.queueEvents = [];
-    this.clientReady = false;
   }
 
   reset() {
@@ -35,20 +34,27 @@ class TtsSessionHandler {
   encodeAudio(pcm) {
     this.outputBuffer = Buffer.concat([this.outputBuffer, pcm]);
     const pieceLength = this.encodeFrameSize * 2;
-
     while (this.outputBuffer.length - this.outputPosition >= pieceLength) {
       const frame = this.outputBuffer.subarray(this.outputPosition, this.outputPosition + pieceLength);
       this.outputPosition += pieceLength;
       const opus = this.encoder.encode(frame);
 
       // Send audio data to the device
-      // format: [version, reserved, timestamp, opus_length, opus_data]
-      const buffer = Buffer.alloc(16 + opus.length);
-      buffer.writeUInt32BE(this.audioTimestamp, 8);
-      buffer.writeUInt32BE(opus.length, 12);
-      buffer.set(opus, 16);
-      this.audioTimestamp += this.encodeFrameSize / 2;
-      this.ws.send(buffer, { binary: true });
+      if (this.protocolVersion === 2) {
+        // format: [version, reserved, timestamp, opus_length, opus_data]
+        const buffer = Buffer.alloc(16 + opus.length);
+        buffer.writeUInt32BE(this.audioTimestamp, 8);
+        buffer.writeUInt32BE(opus.length, 12);
+        buffer.set(opus, 16);
+        this.audioTimestamp += this.encodeFrameSize;
+        this.ws.send(buffer, { binary: true });
+      } else if (this.protocolVersion === 3) {
+        // format: [type, flag, length, opus_data] 省流模式，只需要 4 字节的 header
+        const buffer = Buffer.alloc(4 + opus.length);
+        buffer.writeUInt16BE(opus.length, 2);
+        buffer.set(opus, 4);
+        this.ws.send(buffer, { binary: true });
+      }
     }
   }
 
@@ -72,18 +78,7 @@ class TtsSessionHandler {
     session.on('finished', () => {
       this.ws.send(JSON.stringify({ type: 'tts', state: 'stop' }));
       console.log('[TTS] finished voice_id', this.voice, 'sample_rate', this.sampleRate);
-    });
-    session.on('cancelled', () => {
-      // 如果 TTS 会话被取消，重新创建 TTS 会话，并重新发送文本
-      this.ttsErrorCount++;
-      if (this.ttsErrorCount > 3) {
-        this.ws.close();
-        return;
-      }
-      this.queueEvents.push({
-        resolve: () => this.setupTtsSession(),
-      });
-      this.startClient();
+      this.session = null;
     });
 
     if (this.replyText.length > 0) {
@@ -97,6 +92,19 @@ class TtsSessionHandler {
     this.session = session;
   }
 
+  removeCurrentSession() {
+    if (this.session) {
+      if (!this.finished) {
+        if (this.session.cancel) {
+          this.session.cancel();
+        } else {
+          this.session.finish();
+        }
+      }
+      this.session = null;
+    }
+  }
+
   handleMessage(message) {
     const data = JSON.parse(message);
     if (data.type === 'start') {
@@ -108,7 +116,8 @@ class TtsSessionHandler {
         sample_rate: this.sampleRate,
       }));
 
-      if (this.clientReady) {
+      this.removeCurrentSession();
+      if (this.client && this.client.connectionReady) {
         this.setupTtsSession();
       } else {
         this.queueEvents.push({
@@ -124,7 +133,6 @@ class TtsSessionHandler {
       this.finished = true;
       if (this.session) {
         this.session.finish();
-        this.session = null;
       }
     } else if (data.type === 'config') {
       const ttsItem = ttsList.find(item => item.voice_id === data.voice);
@@ -140,17 +148,27 @@ class TtsSessionHandler {
       }
 
       this.ttsItem = ttsItem;
-      this.sampleRate = config.encodeSampleRate;
+      this.protocolVersion = data.protocolVersion || 2;
+      this.sampleRate = data.sampleRate || config.encodeSampleRate;
       this.reset();
       this.voice = data.voice;
       this.startClient();
+    } else if (data.type === 'abort') {
+      if (this.session) {
+        this.removeCurrentSession();
+        if (this.client) {
+          this.client.close();
+        }
+        this.ws.send(JSON.stringify({ type: 'tts', state: 'stop' }));
+        console.log('[TTS] aborted, starting new client');
+        this.startClient();
+      }
     }
   }
 
   startClient() {
     this.client = new ttsClients[this.ttsItem.voice_source]();
     this.client.on('ready', () => {
-      this.clientReady = true;
       while (this.queueEvents.length > 0) {
         const event = this.queueEvents.shift();
         event.resolve();
@@ -161,14 +179,26 @@ class TtsSessionHandler {
     });
     this.client.on('close', () => {
       console.log('[TTS] client closed');
-      this.clientReady = false;
+    });
+    this.client.on('error', () => {
+      this.ttsErrorCount++;
+      if (this.ttsErrorCount > 3) {
+        this.ws.close();
+        return;
+      }
+      // 如果 TTS session 出错，重新创建 TTS 会话，并重新发送文本
+      if (this.client && this.client.connectionReady && this.session) {
+        console.log('[TTS] client error, retrying');
+        this.queueEvents.push({
+          resolve: () => this.setupTtsSession(),
+        });
+        this.startClient();
+      }
     });
   }
 
   handleClose() {
-    if (this.session) {
-      this.session.finish();
-    }
+    this.removeCurrentSession();
     if (this.client) {
       this.client.close();
     }
