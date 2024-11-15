@@ -163,7 +163,8 @@ class AsrWorker:
         # if no audio input, return []
         if self.audio_buffer.shape[0] == 0:
             return []
-        result = self.model_manager.sv_model(self.audio_buffer)
+        # last 10 seconds
+        result = self.model_manager.sv_model(self.audio_buffer[-SAMPLE_RATE*10:])
         return result.tolist()
 
     def reply(self):

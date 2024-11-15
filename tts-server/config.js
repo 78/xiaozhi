@@ -1,8 +1,4 @@
 module.exports = {
-  ttsFrontendPort: 8083,
-  ttsPingInterval: 30000,
-  ttsReconnectDelay: 1000,
-  encodeSampleRate: 24000,
-  encodeIntervalMs: 60,
-  maxClients: 100,
+  // ttsFrontendPort: 8083,
+  ttsFrontendPort: process.env.NODE_ENV=='dev' ? 8183 : 8083,
 };
