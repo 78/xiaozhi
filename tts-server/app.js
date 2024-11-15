@@ -153,11 +153,6 @@ class TtsSessionHandler {
       this.sender.sendSentenceEnd(text);
     });
     session.on('audio', (pcm) => {
-      if (this.source === 'dashscope') {
-        const fs = require('fs');
-        // append to tts.pcm
-        fs.appendFileSync('tts.pcm', pcm);
-      }
       this.sender.sendAudio(pcm);
     });
     session.on('finished', () => {
