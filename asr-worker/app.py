@@ -70,6 +70,8 @@ class AsrWorker:
         self.fast_reply_silence_duration = 240  # Fast reply duration
         self.reply_silence_duration = 960  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
+        self.max_audio_duration = 120000  # 120 seconds
+        self.mode = 'auto' # auto: 自动应答  manual: 手动应答  realtime: 实时应答
         self.reset()
 
     def reset(self):
@@ -99,7 +101,7 @@ class AsrWorker:
 
     def is_question(self):
         # TODO: Use a model to detect questions
-        match_tokens = ['吗', '嘛', '么', '呢', '吧', '啦', '？', '?']
+        match_tokens = ['吗', '嘛', '么', '呢', '吧', '啦', '？', '?', '拜拜', '再见', '晚安', '退下']
         last_part = self.content[-3:]
         for token in match_tokens:
             if token in last_part:
@@ -109,8 +111,18 @@ class AsrWorker:
     def on_audio_frame(self, frame):
         frame_fp32 = np.frombuffer(frame, dtype=np.int16).astype(np.float32) / 32768
         self.audio_buffer = np.concatenate([self.audio_buffer, frame_fp32])
+        current_duration = self.audio_buffer.shape[0] / 16
 
         if not self.listening:
+            return
+
+        if self.mode == 'manual':
+            if current_duration >= self.max_audio_duration:
+                self.stop()
+            return
+
+        if self.mode == 'realtime':
+            print('realtime mode not implemented')
             return
 
         if self.get_unprocessed_duration() < self.chunk_size_ms:
@@ -139,6 +151,13 @@ class AsrWorker:
             start_time = time.time()
             self.content = self.generate_text()
             logging.info(f'Silence detected: {self.content} (time: {time.time() - start_time:.3f}s)')
+            self.reply()
+            return
+
+        if current_duration >= self.max_audio_duration:
+            start_time = time.time()
+            self.content = self.generate_text()
+            logging.info(f'Max audio duration reached: {self.content} (time: {time.time() - start_time:.3f}s)')
             self.reply()
             return
 
@@ -191,9 +210,16 @@ class AsrWorker:
         self.content = words # Directly use the words, ignore the audio buffer
         self.reply()
     
-    def listen(self):
+    def start(self, mode):
         self.reset()
+        self.mode = mode
         self.listening = True
+    
+    def stop(self):
+        self.listening = False
+        if self.audio_buffer.shape[0] > 0:
+            self.content = self.generate_text()
+            self.reply()
 
 
 class AsrTaskClient:
@@ -229,12 +255,16 @@ class AsrTaskClient:
         data = json.loads(message)
         session_id = data['session_id']
 
-        if data['type'] == 'detect':
-            self.get_worker(session_id).detect(data['words'])
-            logging.info(f'Worker {session_id} detected: {data["words"]}')
-        elif data['type'] == 'listen':
-            self.get_worker(session_id).listen()
-            logging.info(f'Worker {session_id} started listening')
+        if data['type'] == 'listen':
+            worker = self.get_worker(session_id)
+            state = data['state']
+            if state == 'detect':
+                worker.detect(data['text'])
+            elif state == 'start':
+                worker.start(data['mode'])
+            elif state == 'stop':
+                worker.stop()
+            logging.info(f'Worker {session_id} started {state}')
         elif data['type'] == 'finish':
             if session_id in self.workers:
                 del self.workers[session_id]
