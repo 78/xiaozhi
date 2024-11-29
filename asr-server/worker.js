@@ -23,12 +23,12 @@ class AsrWorkerSession extends Emitter {
     this.asrWorker.send(buffer, { binary: true });
   }
 
-  detect(words) {
-    this.sendCommand('detect', { words });
+  detect(params) {
+    this.sendCommand('detect', params);
   }
 
   listen() {
-    this.sendCommand('listen');
+    this.sendCommand('listen', params);
   }
 
   finish() {
@@ -37,7 +37,7 @@ class AsrWorkerSession extends Emitter {
   }
 
   sendCommand(type, params = {}) {
-    this.asrWorker.send(JSON.stringify({ type, session_id: this.sessionId, ...params }));
+    this.asrWorker.send(JSON.stringify({ ...params, type, session_id: this.sessionId }));
   }
 }
 
