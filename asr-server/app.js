@@ -1,5 +1,5 @@
-const { WebSocketServer } = require('ws');
 const config = require('./config');
+const { WebSocketServer } = require('ws');
 const { OpusEncoder } = require('@discordjs/opus');
 const AsrWorkerManager = require('./manager');
 
@@ -27,17 +27,20 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('message', (message, isBinary) => {
-    if (isBinary) {
-      session.sendAudio(decoder.decode(message));
-    } else {
-      const json = JSON.parse(message);
-      if (json.type === 'detect') {
-        session.detect(json.words);
-      } else if (json.type === 'listen') {
-        session.listen();
+    try {
+      if (isBinary) {
+        const data = decoder.decode(message);
+        session.sendAudio(data);
       } else {
-        console.error('收到未知消息类型:', json.type);
+        const json = JSON.parse(message);
+        if (json.type === 'listen') {
+          session.sendJson(json);
+        } else {
+          console.error('收到未知消息类型:', json.type);
+        }
       }
+    } catch (err) {
+      console.error('处理消息时出错:', err);
     }
   });
 

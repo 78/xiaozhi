@@ -46,13 +46,25 @@ python app.py
 
 JSON：
 
-1、detect 开始检测任务
+1、detect 唤醒词声纹检测
 
 ```json
-{ "session_id": "xxx", "type": "detect", "words": "小智" }
+{ "session_id": "xxx", "type": "listen", "state": "detect", "text": "你好小智" }
 ```
 
-2、finish 完成检测任务
+2、start 启动语音识别
+
+```json
+{ "session_id": "xxx", "type": "listen", "state": "start", "mode": "auto" }
+```
+
+3、stop 结束语音识别（仅 mode 为 manual 时有效）
+
+```json
+{ "session_id": "xxx", "type": "listen", "state": "stop" }
+```
+
+4、finish 完成检测任务
 
 ```json
 { "session_id": "xxx", "type": "finish" }

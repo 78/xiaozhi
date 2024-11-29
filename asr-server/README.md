@@ -17,25 +17,45 @@ node app.js
 
 ## 前端 WebSocket 协议
 
-### 发起请求
-
-JSON：
+### 唤醒词声纹检测
 
 计算唤醒词的 embedding。
 
 ```json
 {
-  "type": "detect",
-  "words": "小智"
+  "type": "listen",
+  "state": "detect",
+  "text": "你好小智"
 }
 ```
 
-二进制：
+### 语音识别
 
-发送音频 PCM 数据。
+启动流式语音识别，auto 为自动应答，manual 为手动应答。
+
+```json
+{
+  "type": "listen",
+  "state": "start",
+  "mode": "auto"
+}
+```
+
+### 结束语音识别（仅手动应答）
+
+```json
+{
+  "type": "listen",
+  "state": "stop"
+}
+```
+
+### 发送音频 PCM 数据
+
+通过 WebSocket 的二进制通道发送音频 PCM 数据。
 
 
-### 响应
+### 识别结果
 
 JSON：
 

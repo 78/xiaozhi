@@ -172,19 +172,6 @@ class TtsSessionHandler {
     this.session = session;
   }
 
-  removeCurrentSession() {
-    if (this.session) {
-      if (!this.finished) {
-        if (this.session.cancel) {
-          this.session.cancel();
-        } else {
-          this.session.finish();
-        }
-      }
-      this.session = null;
-    }
-  }
-
   handleMessage(message) {
     const data = JSON.parse(message);
     if (data.type === 'start') {

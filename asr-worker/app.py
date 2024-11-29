@@ -66,7 +66,7 @@ class AsrWorker:
         self.model_manager = model_manager
         self.audio_storage = audio_storage
         self.chunk_size_ms = 240  # VAD duration
-        self.chunk_size = int(SAMPLE_RATE / 1000 * 2 * self.chunk_size_ms)
+        self.chunk_size = int(SAMPLE_RATE / 1000 * self.chunk_size_ms)
         self.fast_reply_silence_duration = 240  # Fast reply duration
         self.reply_silence_duration = 960  # Reply duration
         self.truncate_silence_duration = 1440  # Truncate duration
@@ -190,7 +190,7 @@ class AsrWorker:
         if self.content == '。':
             logging.info(f'Ignore empty content {self.content}')
             self.reset()
-            self.listen()
+            self.start(self.mode)
             return
         
         oss_prefix = os.getenv('OSS_BUCKET_URL', '')
